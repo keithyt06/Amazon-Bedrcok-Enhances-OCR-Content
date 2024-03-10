@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OCR DEMO</title>
+    <style>
+        .header {
+            text-align: center; 
+            font-size: 2em; 
+            padding: 10px; 
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .content-container {
+            display: flex;
+            flex-grow: 1; /* 占据剩余空间 */
+        }
+        .ocr-image-container {
+            text-align: center; /* 如果您希望图片居中 */
+            padding: 10px;
+        }
+
+        .ocr-image-container img {
+            max-width: 100%;
+            height: auto; /* 保持图片的宽高比 */
+        }
+        .image-container, .text-container {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto; 
+        }
+
+        .file-name {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        img {
+            max-width: 100%;
+            max-height: calc(100vh - 60px); /* 减去 header 的高度 */
+            object-fit: contain;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table td:first-child {
+        min-width: 75px; /* 设置第一列的最小宽度 */
+        }
+
+        td {
+            padding: 5px;
+            border: 1px solid #ddd;
+        }
+
+        tr:nth-child(odd) {
+            background-color: #f9f9f9;
+        }
+    </style>
+    
+    
+    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            var imageFile = "{{ image_file }}";
+
+            
+        function getClaudeResults(ocrResult) {
+        $.ajax({
+            url: '/get_claude_results',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ 'ocr_result': ocrResult }),
+            success: function(response) {
+            // 调用 getClaudeResults 函数，使用 OCR 结果
+                var jsonData = JSON.parse(response.captions);
+
+                var tableHtml = '<table>';
+                for (var key in jsonData) {
+                    if (jsonData.hasOwnProperty(key)) {
+                        if (Array.isArray(jsonData[key]) && key === '药品信息') {
+                            // 专门处理 "药品信息" 数组
+                            tableHtml += '<tr><td>' + key + '</td><td><table><tr>';
+                            // 假设所有药品对象具有相同的键
+                            if(jsonData[key].length > 0){
+                                for (var itemKey in jsonData[key][0]) {
+                                    tableHtml += '<th>' + itemKey + '</th>';
+                                }
+                            }
+                            tableHtml += '</tr>';
+                            jsonData[key].forEach(function(item) {
+                                tableHtml += '<tr>';
+                                for (var itemKey in item) {
+                                    tableHtml += '<td>' + item[itemKey] + '</td>';
+                                }
+                                tableHtml += '</tr>';
+                            });
+                            tableHtml += '</table></td></tr>';
+                        } else {
+                            // 处理其他普通字段
+                            tableHtml += '<tr><td>' + key + '</td><td>' + jsonData[key] + '</td></tr>';
+                        }
+                    }
+                }
+                tableHtml += '</table>';
+                $('.ocr-result').html(tableHtml);
+            },
+            error: function(error) {
+                $('.ocr-result').html('<p>识别结果: 出现错误，请稍后再试。</p>');
+            }
+            });
+        }
+
+        $.ajax({
+                    url: '/get_ocr_results',
+                    data: { 'file_name': imageFile },
+                    type: 'GET',
+                    success: function(response) {
+                        // 展示处理后的图片
+                        $('#ocrImage').attr('src', 'data:image/png;base64,' + response.image_base64);
+                        getClaudeResults(response.ocr_result);
+                    },
+                    error: function(error) {
+                        console.error('获取 OCR 结果失败：', error);
+                    }
+        });
+    });
+
+    </script>
+    
+
+</head>
+<body>
+    <div class="main-container">
+        <div class="header">OCR DEMO for YX by WTTAT</div>
+        <div class="ocr-image-container">
+            <img id="ocrImage" alt="OCR Image">
+        </div>
+        <div class="content-container">
+            <div class="image-container">
+                <img src="{{ url_for('dataset', filename=image_file) }}" alt="图片">
+            </div>
+            <div class="text-container">
+                <div class="file-name">文件名: {{ image_file }}</div>
+                <div class="ocr-result">
+                    <p>识别结果: 正在处理中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
